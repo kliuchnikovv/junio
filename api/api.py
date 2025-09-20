@@ -59,6 +59,9 @@ class API:
         if error:
             return error
 
+        if data is None:
+            return self.send_error(400, "No data provided")
+
         message = data.get('message')
         thread_id = data.get('thread_id')
 
@@ -72,6 +75,7 @@ class API:
                 return self.send_error(500, f"internal error: {error}")
 
             # Convert messages to serializable format
+            messages = agent_final_state.get("messages", []) if agent_final_state else []
             serializable_state = {
                 "messages": [
                     {
@@ -80,11 +84,12 @@ class API:
                         "id": getattr(msg, 'id', None),
                         "name": getattr(msg, 'name', None)
                     }
-                    for msg in agent_final_state.get("messages", [])
+                    for msg in messages
                 ]
             }
 
-            logging.debug(f"request processed: id {data.get('request_id')}")
+            request_id = data.get('request_id', 'unknown')
+            logging.debug(f"request processed: id {request_id}")
             return jsonify(serializable_state)
         except Exception as e:
             logging.error(f"internal error: {e}")
