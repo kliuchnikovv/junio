@@ -1,45 +1,83 @@
-import os
 import sys
 import logging
 
 from flask import Flask
 from api.api import API
+from service.config import ConfigLoader
 from service.checkpointer import CheckpointerFactory
 from service.agent.agent import chat_agent
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-# Configure logging only once
-if not logging.getLogger().handlers:
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Handle unhandled exceptions
+def setup_logging(config):
+    """Setup logging based on configuration"""
+    if logging.getLogger().handlers:
+        return  # Already configured
+
+    level = getattr(logging, config.logging.level.upper())
+    format_str = config.logging.format
+
+    if config.logging.file:
+        logging.basicConfig(
+            level=level,
+            format=format_str,
+            filename=config.logging.file
+        )
+    else:
+        logging.basicConfig(
+            level=level,
+            format=format_str
+        )
+
+
 def handle_exception(exc_type, exc_value, exc_traceback):
+    """Handle unhandled exceptions"""
     if issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
-    print(f"Unhandled exception: {exc_type.__name__}: {exc_value}")
+    logging.error(f"Unhandled exception: {exc_type.__name__}: {exc_value}")
 
-sys.excepthook = handle_exception
 
-app   = Flask(__name__)
-port  = os.getenv('PORT', 3000)
-debug_mode = os.getenv('DEBUG', 'false').lower() == 'true'
+def create_app():
+    """Application factory"""
+    # Load configuration
+    config_loader = ConfigLoader()
+    config = config_loader.load()
 
-# Create checkpointer using factory
-checkpointer = CheckpointerFactory.create(debug_mode)
-checkpointer_type = CheckpointerFactory.get_checkpointer_type()
+    # Setup logging
+    setup_logging(config)
 
-agent = chat_agent(
-    ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
-        debug_mode=debug_mode,
-    ), 
-    [], 
-    checkpointer,
-)
+    # Setup exception handling
+    sys.excepthook = handle_exception
 
-api   = API(app, agent)
+    # Create Flask app
+    app = Flask(config.app.name)
+
+    # Create checkpointer
+    checkpointer = CheckpointerFactory.create(config)
+    checkpointer_type = CheckpointerFactory.get_checkpointer_type(config)
+    logging.info(f"Initialized with {checkpointer_type}")
+
+    # Create agent
+    agent = chat_agent(
+        ChatGoogleGenerativeAI(
+            model=config.model.name,
+            **config.model.parameters
+        ),
+        config.tools.enabled,
+        checkpointer,
+    )
+
+    # Create API
+    api = API(app, agent, config_loader)
+
+    logging.info(f"Application '{config.app.name}' v{config.app.version} initialized")
+    return app, config
+
+
+# Create the application
+app, config = create_app()
 
 if __name__ == '__main__':
-    logging.info(f"Server is running on http://localhost:{port}")
-    app.run(host='0.0.0.0', port=int(port), debug=False, use_reloader=False)
+    logging.info(f"Server is running on http://localhost:{config.app.port}")
+    app.run(host='0.0.0.0', port=config.app.port, debug=config.app.debug, use_reloader=False)

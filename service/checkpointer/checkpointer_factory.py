@@ -1,6 +1,6 @@
-import os
 import logging
 from langgraph.checkpoint.memory import MemorySaver
+from service.config import Config
 
 try:
     from langgraph.checkpoint.postgres import PostgresSaver
@@ -13,25 +13,40 @@ class CheckpointerFactory:
     """Factory class for creating appropriate checkpointer instances"""
 
     @staticmethod
-    def create(debug_mode):
-        if debug_mode:
-            logging.info("Using MemorySaver (DEBUG mode)")
+    def create(config: Config):
+        """Create checkpointer based on configuration"""
+        checkpoint_type = config.checkpoint.type
+
+        if checkpoint_type == "auto":
+            # Auto mode: use debug flag to decide
+            if config.app.debug:
+                logging.info("Using MemorySaver (DEBUG mode)")
+                return MemorySaver()
+            else:
+                logging.info("Using PostgresSaver (production mode)")
+                return CheckpointerFactory._create_postgres_saver(config)
+        elif checkpoint_type == "memory":
+            logging.info("Using MemorySaver (configured)")
             return MemorySaver()
+        elif checkpoint_type == "postgres":
+            logging.info("Using PostgresSaver (configured)")
+            return CheckpointerFactory._create_postgres_saver(config)
         else:
-            logging.info("Using PostgresSaver (NON DEBUG mode)")
-            return CheckpointerFactory._create_postgres_saver()
+            logging.warning(f"Unknown checkpoint type: {checkpoint_type}, falling back to MemorySaver")
+            return MemorySaver()
 
     @staticmethod
-    def _create_postgres_saver():
+    def _create_postgres_saver(config: Config):
         """Create PostgresSaver or fallback to MemorySaver"""
         if not POSTGRES_AVAILABLE:
             logging.warning("PostgresSaver not available, falling back to MemorySaver")
             return MemorySaver()
 
-        # Production mode - use PostgreSQL
-        connection_string = os.getenv('POSTGRES_CONNECTION_STRING')
-        if not connection_string:
-            connection_string = CheckpointerFactory._build_connection_string()
+        # Get connection string from config
+        from service.config import ConfigLoader
+        config_loader = ConfigLoader()
+        config_loader.load()  # Ensure config is loaded
+        connection_string = config_loader.get_postgres_connection_string()
 
         if not connection_string:
             logging.warning("PostgreSQL configuration incomplete, falling back to MemorySaver")
@@ -45,33 +60,34 @@ class CheckpointerFactory:
             return MemorySaver()
 
     @staticmethod
-    def _build_connection_string():
-        """Build PostgreSQL connection string from individual environment variables"""
-        host = os.getenv('POSTGRES_HOST', 'localhost')
-        port = os.getenv('POSTGRES_PORT', '5432')
-        db = os.getenv('POSTGRES_DB', 'langgraph')
-        user = os.getenv('POSTGRES_USER', 'postgres')
-        password = os.getenv('POSTGRES_PASSWORD')
-
-        if not password:
-            logging.warning("POSTGRES_PASSWORD not provided")
-            return None
-
-        return f"postgresql://{user}:{password}@{host}:{port}/{db}"
-
-    @staticmethod
     def is_postgres_available():
         """Check if PostgresSaver is available"""
         return POSTGRES_AVAILABLE
 
     @staticmethod
-    def get_checkpointer_type():
+    def get_checkpointer_type(config: Config):
         """Get the type of checkpointer that would be created"""
-        debug_mode = os.getenv('DEBUG', 'false').lower() == 'true'
+        checkpoint_type = config.checkpoint.type
 
-        if debug_mode:
-            return "MemorySaver"
-        elif POSTGRES_AVAILABLE and CheckpointerFactory._build_connection_string():
-            return "PostgresSaver"
+        if checkpoint_type == "auto":
+            if config.app.debug:
+                return "MemorySaver (debug)"
+            elif POSTGRES_AVAILABLE:
+                from service.config import ConfigLoader
+                config_loader = ConfigLoader()
+                config_loader.load()  # Ensure config is loaded
+                if config_loader.get_postgres_connection_string():
+                    return "PostgresSaver (auto)"
+                else:
+                    return "MemorySaver (fallback)"
+            else:
+                return "MemorySaver (postgres unavailable)"
+        elif checkpoint_type == "memory":
+            return "MemorySaver (configured)"
+        elif checkpoint_type == "postgres":
+            if POSTGRES_AVAILABLE:
+                return "PostgresSaver (configured)"
+            else:
+                return "MemorySaver (postgres unavailable)"
         else:
-            return "MemorySaver (fallback)"
+            return "MemorySaver (unknown type)"

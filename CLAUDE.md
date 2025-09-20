@@ -34,9 +34,24 @@ docker-compose up --build
 
 ## Configuration
 
-- **Environment Variables**: Uses `.env` file for configuration (API keys, PORT)
-- **Port**: Server runs on port specified by `PORT` environment variable (defaults to 3000)
-- **API Endpoint**: Server exposes `/invoke` POST endpoint that accepts `message` and `thread_id`
+The application uses a YAML-based configuration system with environment variable overrides:
+
+- **Configuration File**: `config.yaml` (copy from `config.template.yaml`)
+- **Environment Variables**: `.env` file for sensitive data (API keys, passwords)
+- **Override Support**: Environment variables override YAML settings
+
+### Configuration Structure
+- `app`: Application settings (name, version, debug, port)
+- `model`: LLM configuration (provider, model name, parameters)
+- `checkpoint`: Database/persistence settings (auto/memory/postgres)
+- `api`: API endpoints and CORS settings
+- `tools`: Available tools configuration (extensible)
+- `logging`: Logging level and format
+- `graph`: Graph node configuration
+
+### API Endpoints
+- `/message` - POST endpoint for chat messages (accepts `message` and `thread_id`)
+- `/health` - GET endpoint for health checks (configurable)
 
 ## Code Structure
 

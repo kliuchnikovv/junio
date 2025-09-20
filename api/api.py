@@ -1,32 +1,48 @@
-import os
+import uuid
 import logging
 
 from flask import request, jsonify
+from service.config import ConfigLoader
 
 class API:
-    def __init__(self, app, agent):
+    def __init__(self, app, agent, config_loader=None):
         if not app:
             raise ValueError("app can't be None")
 
-        # Check for required environment variables
-        api_key = os.getenv('GOOGLE_API_KEY')
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY environment variable is required")
+        # Use provided config_loader or create new one
+        if config_loader is None:
+            config_loader = ConfigLoader()
+            config_loader.load()
+
+        # Validate API key is available
+        try:
+            config_loader.get_api_key()
+        except ValueError as e:
+            raise ValueError(str(e))
 
         self.app = app
         self.agent = agent
+        self.config_loader = config_loader
 
         self.register()
 
         logging.debug("API created")
 
     def get_data(self):
-        try:
-            data = request.get_json()
-        except Exception as e:
-            return None, self.send_error(400, f"Invalid JSON: {e}")
+        request_id = str(uuid.uuid4())
 
-        logging.info(f"got request: {data}")
+        try:
+            data = request.get_json(force=True)
+        except Exception as e:
+            logging.error(f"JSON parsing error: {e}")
+            return None, self.send_error(400, f"Invalid JSON: {str(e)}")
+
+        if data is None:
+            return None, self.send_error(400, "No JSON data provided")
+
+        logging.info(f"got request: id: {request_id}, data: {data}")
+        data['request_id'] = request_id
+
         return data, None
 
     def send(self, code, msg):
@@ -42,8 +58,6 @@ class API:
         data, error = self.get_data()
         if error:
             return error
-        if data is None:
-            return self.send_error(400, "Invalid JSON")
 
         message = data.get('message')
         thread_id = data.get('thread_id')
@@ -70,7 +84,7 @@ class API:
                 ]
             }
 
-            logging.debug(f"request processed: {serializable_state}")
+            logging.debug(f"request processed: id {data.get('request_id')}")
             return jsonify(serializable_state)
         except Exception as e:
             logging.error(f"internal error: {e}")

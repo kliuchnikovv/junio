@@ -1,0 +1,73 @@
+# LangGraph Agent Configuration Template
+# Copy this file to config.yaml and customize for your environment
+
+# Application settings
+app:
+  name: "langgraph-agent"
+  version: "1.0.0"
+  debug: true  # Override with DEBUG env var
+  port: 3000   # Override with PORT env var
+
+# Model configuration
+model:
+  provider: "google"
+  name: "gemini-2.0-flash"
+  api_key_env: "GOOGLE_API_KEY"
+  parameters:
+    temperature: 0.7
+    max_tokens: 1000
+
+# Database/Checkpoint configuration
+checkpoint:
+  type: "auto"  # auto (based on debug), memory, postgres
+  postgres:
+    host: "localhost"
+    port: 5432
+    database: "langgraph"
+    user: "postgres"
+    password_env: "POSTGRES_PASSWORD"
+    connection_string_env: "POSTGRES_CONNECTION_STRING"
+    pool_size: 10
+    max_overflow: 20
+
+# API configuration
+api:
+  endpoints:
+    message: "/message"
+    health: "/health"
+  cors:
+    enabled: false
+    origins: ["*"]
+
+# Tools configuration
+tools:
+  enabled: []
+  # Examples:
+  # calculator:
+  #   enabled: true
+  #   precision: 2
+  # web_search:
+  #   enabled: false
+  #   api_key_env: "SEARCH_API_KEY"
+  # file_operations:
+  #   enabled: false
+  #   allowed_paths: ["/tmp", "/uploads"]
+
+# Logging configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: null
+
+# Graph configuration
+graph:
+  nodes:
+    start:
+      enabled: true
+      log_messages: true
+    agent:
+      enabled: true
+      timeout: 30
+    end:
+      enabled: true
+      log_completion: true
