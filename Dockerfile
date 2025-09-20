@@ -1,15 +1,16 @@
-FROM node:20-slim
+FROM python:3.11-slim
+
+# Ensure Python output is unbuffered for proper logging in Docker
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-
-RUN npm install
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN npx tsc
+EXPOSE ${PORT:-3000}
 
-EXPOSE 3000
-
-CMD ["node", "./dist/server.mjs"]
+CMD ["python", "app.py"]
