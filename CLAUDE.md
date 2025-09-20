@@ -32,6 +32,28 @@ python app.py
 docker-compose up --build
 ```
 
+### Railway Deployment
+```bash
+# Install Railway CLI
+npm install -g @railway/cli
+
+# Login to Railway
+railway login
+
+# Initialize Railway project
+railway init
+
+# Deploy to Railway
+railway up
+
+# Set environment variables on Railway
+railway variables set GOOGLE_API_KEY=your_api_key_here
+railway variables set DATABASE_URL=your_database_url_here
+
+# View deployment logs
+railway logs
+```
+
 ## Configuration
 
 The application uses a YAML-based configuration system with environment variable overrides:
@@ -57,6 +79,8 @@ The application uses a YAML-based configuration system with environment variable
 
 - `agent.py`: Core agent creation and configuration
 - `app.py`: Flask HTTP server implementation with `/invoke` endpoint
+- `Procfile`: Railway deployment configuration
+- `railway.json`: Railway build and deploy settings
 - Error handling implemented for unhandled exceptions
 - Message serialization for JSON responses
 
