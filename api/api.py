@@ -2,13 +2,9 @@ import os
 import logging
 
 from flask import request, jsonify
-from service.agent.agent import chat_agent
-from langchain_core.messages import HumanMessage
-from langgraph.checkpoint.memory import MemorySaver
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 class API:
-    def __init__(self, app):
+    def __init__(self, app, agent):
         if not app:
             raise ValueError("app can't be None")
 
@@ -18,9 +14,8 @@ class API:
             raise ValueError("GOOGLE_API_KEY environment variable is required")
 
         self.app = app
-        self.agent = chat_agent(ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
-        ), [], MemorySaver())
+        self.agent = agent
+
         self.register()
 
         logging.debug("API created")
@@ -30,10 +25,6 @@ class API:
             data = request.get_json()
         except Exception as e:
             return None, self.send_error(400, f"Invalid JSON: {e}")
-        
-        if data is None:
-            return None, self.send_error(400, "Invalid JSON")
-
 
         logging.info(f"got request: {data}")
         return data, None
@@ -51,6 +42,8 @@ class API:
         data, error = self.get_data()
         if error:
             return error
+        if data is None:
+            return self.send_error(400, "Invalid JSON")
 
         message = data.get('message')
         thread_id = data.get('thread_id')
@@ -61,8 +54,8 @@ class API:
         try:
             agent_final_state, error = self.agent.handle_message(message, thread_id)
             if error:
-                logging.error(f"internal error: {e}")
-                return self.send_error(500, f"internal error: {e}")
+                logging.error(f"internal error: {error}")
+                return self.send_error(500, f"internal error: {error}")
 
             # Convert messages to serializable format
             serializable_state = {

@@ -40,8 +40,22 @@ docker-build:
 docker-run:
 	docker-compose up
 
+docker-run-prod:
+	docker-compose up -d
+
 docker-stop:
 	docker-compose down
+
+docker-clean:
+	docker-compose down -v
+	docker system prune -f
+
+# Database commands
+db-logs:
+	docker-compose logs postgres
+
+db-connect:
+	docker-compose exec postgres psql -U postgres -d langgraph
 
 # Test command (placeholder)
 test:
